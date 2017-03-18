@@ -13,7 +13,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='eldam',
-    version='1.0.0',
+    version='1.0.1',
     description="Elastic Search transaction based data manager.",
     long_description="Elastic Search data manger with zope transaction support. *****SAMMY***** 133740 wants to put his name",
     url="https://github.com/bemineni/edm",
@@ -29,13 +29,11 @@ setup(
            'Development Status :: 5 - Production/Stable',
             # Indicate who your project is intended for
            'Intended Audience :: Developers',
-           'Topic :: Software Development :: Database library',
+           'Topic :: Database',
            # Pick your license as you wish (should match "license" above)
-           'License :: MIT License',
+           'License :: OSI Approved :: MIT License',
            # Specify the Python versions you support here. In particular, ensure
            # that you indicate whether you support Python 2, Python 3 or both.
-          'Programming Language :: Python :: 2.7',
-          'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5'
