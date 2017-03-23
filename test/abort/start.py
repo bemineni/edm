@@ -4,7 +4,7 @@ import sys
 import yaml
 import traceback
 import transaction
-from edm.elasticdatamanager import ElasticDataManager
+from eldam.elasticdatamanager import ElasticDataManager
 from tdm import TestDataManager
 #from .tdm import TestDataManager
 

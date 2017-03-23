@@ -3,7 +3,7 @@ import os
 import sys
 import yaml
 import traceback
-from edm.elasticdatamanager import ElasticDataManager
+from eldam.elasticdatamanager import ElasticDataManager
 
 if __name__ == "__main__":
 

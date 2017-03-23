@@ -50,8 +50,12 @@ class ElasticDataManager(object):
 	def __init__(self):
 		self._resources = []
 		self.current = 0
+		self._connection = None
 
 	def connect(self,settings,default_index = ""):
+		"""
+			Establish a elastic search connection
+		"""
 		eshosts = settings['elasticsearch_hosts']
 		self._connection = Elasticsearch( eshosts,
 						# sniff before doing anything 
@@ -64,6 +68,9 @@ class ElasticDataManager(object):
 
 	@property
 	def connection(self):
+		"""
+			property get existing established elastic search connection
+		"""
 		return self._connection
 
 
@@ -71,6 +78,15 @@ class ElasticDataManager(object):
 		return self._connection
 
 	def add(self,item):
+		"""
+			Add document to the elasticsearch index.  
+			Required in the item dictionary
+				_id = ID for the to be saved document
+				_type = Type of the document
+				_source = Source/body to be saved
+				_index(optional) = If default_index is set, then this is optional
+			This will be committed during the transaction process.
+		"""
 		log = logging.getLogger(__name__)
 		log.info("Adding elasticsearch item")
 		if ( len(self._resources) == 0):
@@ -79,13 +95,21 @@ class ElasticDataManager(object):
 
 		item['_op'] = "add"
 		item['processed'] = False
-		item['_index'] = self.get_index(item)
-		self.check_type(item)
-		self.check_id(item)
+		item['_index'] = self._get_index(item)
+		self._check_type(item)
+		self._check_id(item)
 
 		self._resources.append(item)
 
 	def remove(self,item):
+		"""
+			Remove document from elasticsearch index
+			Required in the item dictionary
+				_id = ID for the to be saved document
+				_type = Type of the document
+				_index(optional) = If default_index is set, then this is optional
+			This will be committed during the transaction process.
+		"""
 		log = logging.getLogger(__name__)
 		log.info("Removing elasticsearch item")
 		if ( len(self._resources) == 0):
@@ -95,12 +119,22 @@ class ElasticDataManager(object):
 		item['_op'] = "remove"
 		item['processed'] = False
 		item['_index'] = self.get_index(item)
-		self.check_type(item)
-		self.check_id(item)
+		self._check_type(item)
+		self._check_id(item)
 
 		self._resources.append(item)
 
 	def update(self,item):
+		"""
+			Update document already present in the elasticsearch index.
+			Required in the item dictionary
+				_id = ID for the to be saved document
+				_type = Type of the document
+				_index(optional) = If default_index is set, then this is optional
+			This will be committed during the transaction process. If the document
+			isn't already present in the index, then this will be converted to an add 
+			request.
+		"""
 		log = logging.getLogger(__name__)
 		log.info("Update elasticsearch item")
 		if ( len(self._resources) == 0):
@@ -109,13 +143,13 @@ class ElasticDataManager(object):
 
 		item['_op'] = "update"
 		item['processed'] = False
-		item['_index'] = self.get_index(item)
-		self.check_type(item)
-		self.check_id(item)
+		item['_index'] = self._get_index(item)
+		self._check_type(item)
+		self._check_id(item)
 
 		self._resources.append(item)
 
-	def get_index(self,item):
+	def _get_index(self,item):
 
 		if ('_index' not in item and
 			len(self.default_index) == 0):
@@ -123,16 +157,16 @@ class ElasticDataManager(object):
 
 		return  item['_index'] if '_index' in item else self.default_index
 
-	def check_type(self,item):
+	def _check_type(self,item):
 
 		if '_type' not in item:
 			raise ElastiSearchParamMissingError("_type input missing")
 
 
-	def check_id(self,item):
+	def _check_id(self,item):
 
 		if '_id' not in item:
-			raise ElastiSearchParamMissingError("_type input missing")			
+			raise ElastiSearchParamMissingError("_id input missing")			
 
 	@property
 	def savepoint(self):
@@ -164,13 +198,19 @@ class ElasticDataManager(object):
 		log.info("tpc_begin")
 
 	def commit(self, transaction):
+
 		"""
-			This is the step where data managers need to prepare to save the changes 
-			and make sure that any conflicts or errors that could occur during the 
-			save operation are handled. Changes should be ready but not made 
-			permanent, because the transaction could still be aborted if other 
-			transaction managers are not able to commit.
+			We record and backup existing data and then perform the operation.
+			if any of the other transaction managers vote to back up, then we recommit 
+			all the data backed up during this commit process.
 		"""
+		
+		###	This is the step where data managers need to prepare to save the changes 
+		###	and make sure that any conflicts or errors that could occur during the 
+		###	save operation are handled. Changes should be ready but not made 
+		###	permanent, because the transaction could still be aborted if other 
+		###	transaction managers are not able to commit.
+
 		log = logging.getLogger(__name__)
 		log.info("commit")
 		# Lets commnit and keep track of the items that are commited. In case we get 

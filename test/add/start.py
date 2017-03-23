@@ -4,7 +4,7 @@ import sys
 import yaml
 import traceback
 import transaction
-from edm.elasticdatamanager import ElasticDataManager
+from eldam.elasticdatamanager import ElasticDataManager
 
 if __name__ == "__main__":
 
