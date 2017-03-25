@@ -1,0 +1,12 @@
+Build project
+-------------
+python setup.py sdist
+
+
+Building documentation
+----------------------
+
+cd /docs
+make -f Makefile html
+
+
