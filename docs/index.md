@@ -41,7 +41,10 @@ Parameter
 from eldam.elasticdatamanger import ElasticDataManager
 
 edm = new ElasticDataManager()
-edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
+edm.connect({ 
+              "elasticsearch_hosts":["16.83.62.232:9200","16.83.63.114:9200"]
+            },
+            "test")
 ```
 
 ### `connection()`
@@ -52,7 +55,10 @@ Is class property to get the established connection.
 from eldam.elasticdatamanger import ElasticDataManager
 
 edm = new ElasticDataManager()
-edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
+edm.connect({ 
+              "elasticsearch_hosts":["16.83.62.232:9200","16.83.63.114:9200"]
+            },
+            "test")
 # you can directly run api's defined from python ElasticSearch 5.0.0 and above
 print(edm.connection.cluster.health())
 ```
@@ -70,11 +76,15 @@ Parameters
   - '_source' - Source of the document.
 
 ```python
+import transaction
 from eldam.elasticdatamanger import ElasticDataManager
 
 
 edm = ElasticDataManager()
-edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
+edm.connect({ 
+              "elasticsearch_hosts":["16.83.62.232:9200","16.83.63.114:9200"]
+            },
+            "test")
 edm.add({'_type':'group',
         '_id':'2',
         '_source':{ 
@@ -100,11 +110,15 @@ Parameters
   - '_id' - Id of the document.
 
 ```python
+import transaction
 from eldam.elasticdatamanger import ElasticDataManager
 
 
 edm = ElasticDataManager()
-edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
+edm.connect({ 
+              "elasticsearch_hosts":["16.83.62.232:9200","16.83.63.114:9200"]
+            },
+            "test")
 edm.remove({'_type':'group',
                 '_id':'2'})
 
@@ -125,11 +139,15 @@ Parameters
   - '_source' - Source of the document. Can be partial update attributes of the original document.
 
 ```python
+import transaction
 from eldam.elasticdatamanger import ElasticDataManager
 
 
 edm = ElasticDataManager()
-edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
+edm.connect({ 
+              "elasticsearch_hosts":["16.83.62.232:9200","16.83.63.114:9200"]
+            },
+            "test")
 edm.update({'_type':'group',
                 '_id':'2',
                 '_source':{ 
