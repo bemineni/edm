@@ -130,7 +130,7 @@ from eldam.elasticdatamanger import ElasticDataManager
 
 edm = ElasticDataManager()
 edm.connect(["16.83.62.232:9200","16.83.63.114:9200"],"test")
-edm.add({'_type':'group',
+edm.update({'_type':'group',
                 '_id':'2',
                 '_source':{ 
                             "description": "Sammy study group"
