@@ -404,7 +404,6 @@ class ElasticDataManager(object):
 			elif item['_op'] == "delete_by_query":
 
 				# get all the fields provided by the user to update
-				keys = item['_source'].keys()
 
 				item['_backup'] = self._connection.search(index=item['_index'],
 														doc_type=item['_type'],

@@ -43,6 +43,7 @@ if __name__ == "__main__":
 			raise Exception("Unable to add/update item")
 		else:
 			print(json.dumps(data,indent=4,sort_keys=True))
+			print("Test passed")
 		
 	except Exception as e:
 		print("Failed to add item")

@@ -47,7 +47,7 @@ if __name__ == "__main__":
 		except Exception as e:
 			# not found, the item got deleted
 			# that is what we are looking for.
-			pass
+			print("Test passed")
 		
 	except Exception as e:
 		print("Failed to remove item")

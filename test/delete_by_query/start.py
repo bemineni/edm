@@ -73,18 +73,10 @@ if __name__ == "__main__":
 										}
 						}
 
-		item['_script'] = {
-					"inline":"ctx._source.description = params.description;ctx._source.name = params.name",
-					"params":{
-						"description": "Eldam group",
-						"name":"eldam"
-					},
-					"lang":"painless"
-				}
 		item['_type'] = 'group'
 
 
-		edm.update_by_query(item)
+		edm.delete_by_query(item)
 
 		transaction.commit()
 
@@ -94,12 +86,13 @@ if __name__ == "__main__":
 
 		print(json.dumps(search, sort_keys=True, indent=4))
 		
-		for things in search['hits']['hits']:
-			if (things['_source']['description'] != 'Eldam group' or
-				things['_source']['name'] != "eldam"):
-				raise Exception("Unable to update the documents")
+		if len(search['hits']['hits']) > 0:
+			raise Exception("Unable to delete documents by query")
+		else:
+			print("Test passed")
 
-		print("Test passed")
+
+		transaction.commit()
 
 		
 	except Exception as e:
@@ -114,6 +107,7 @@ if __name__ == "__main__":
 		  							doc_type="group",
 		  							id=thing['_id'])):
 		  		out = edm.connection.delete(index=config['default_index'],doc_type=thing['_type'],id=thing['_id'])
+		  		print(json.dumps(out, sort_keys=True, indent=4))
 
 		print(test_name + " Test complete")
 
