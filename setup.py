@@ -13,7 +13,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='eldam',
-    version='1.0.1',
+    version='1.2.0',
     description="Elastic Search transaction based data manager.",
     long_description="Elastic Search data manger with zope transaction support. *****SAMMY***** 133740 wants to put his name",
     url="https://github.com/bemineni/edm",
