@@ -27,9 +27,28 @@ if __name__ == "__main__":
 		#							doc_type='group'
 		#							id=2)
 		#print(result)
+		edm.add({'_type':'group',
+				'_id':'2',
+				'_source':{ 
+							"gid": 234, 
+							"owner": "bemineni", 
+							"name": "Sammy", 
+							"grp_hash": "456678", 
+							"description": "Sammy group"
+							}
+				})
 		edm.remove({'_type':'group',
 				'_id':'2'})
 		transaction.commit()
+		try:
+			data = edm.connection.get(index=config['default_index'],doc_type="group",id="2")
+			if '_source' in data:
+				raise Exception("Remove id 2 failed")
+		except Exception as e:
+			# not found, the item got deleted
+			# that is what we are looking for.
+			pass
+		
 	except Exception as e:
 		print("Failed to remove item")
 		print("Test failed")

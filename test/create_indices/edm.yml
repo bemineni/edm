@@ -9,7 +9,7 @@ elasticsearch_hosts:
 
 # port to use
 port: 9200
-default_index: "medicscity"
+default_index: "eldam"
 
 
 

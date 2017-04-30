@@ -11,6 +11,7 @@
 import os
 import transaction
 import logging
+import json
 from transaction.interfaces import ISavepointDataManager, IDataManagerSavepoint
 from zope.interface import implementer
 from elasticsearch import Elasticsearch
@@ -20,11 +21,19 @@ class ElasticSearchException(Exception):
 	def __init__(self,msg):
 		self.msg = msg
 
+
 class ElasticSearchParamMissingError(ElasticSearchException):
-    """Missing input param in the input"""
-    def __init__(self, msg):
-    	super().__init__(msg)
-        
+	"""Missing input param in the input"""
+	def __init__(self, msg):
+		super().__init__(msg)
+
+
+
+class ElasticSearchSourceError(ElasticSearchException):
+	"""Missing input source in the input"""
+	def __init__(self, msg):
+		super().__init__(msg)
+
 
 @implementer(ISavepointDataManager)
 class ElasticDataManager(object):
@@ -118,7 +127,7 @@ class ElasticDataManager(object):
 
 		item['_op'] = "remove"
 		item['processed'] = False
-		item['_index'] = self.get_index(item)
+		item['_index'] = self._get_index(item)
 		self._check_type(item)
 		self._check_id(item)
 
@@ -131,6 +140,7 @@ class ElasticDataManager(object):
 				_id = ID for the to be saved document
 				_type = Type of the document
 				_index(optional) = If default_index is set, then this is optional
+				_source = partial or full source to be updated.
 			This will be committed during the transaction process. If the document
 			isn't already present in the index, then this will be converted to an add 
 			request.
@@ -141,6 +151,9 @@ class ElasticDataManager(object):
 			log.info("Joining transaction")
 			self.transaction_manager.get().join(self)
 
+		if '_source' not in item :
+			raise ElasticSearchParamMissingError("_source data to update missing")
+
 		item['_op'] = "update"
 		item['processed'] = False
 		item['_index'] = self._get_index(item)
@@ -148,6 +161,69 @@ class ElasticDataManager(object):
 		self._check_id(item)
 
 		self._resources.append(item)
+
+	def update_by_query(self,item):
+		"""
+			Update document already present in the elasticsearch index.
+			Required in the item dictionary
+				_id = ID for the to be saved document
+				_type = Type of the document
+				_index(optional) = If default_index is set, then this is optional
+				_query = Query DSL to update all the documents matching the query
+				_source = partial or full source to be updated.
+			This will be committed during the transaction process. If the document
+			isn't already present in the index, then this will be converted to an add 
+			request.
+		"""
+		log = logging.getLogger(__name__)
+		log.info("Update elasticsearch item")
+		if ( len(self._resources) == 0):
+			log.info("Joining transaction")
+			self.transaction_manager.get().join(self)
+
+
+		if '_query' not in item :
+			raise ElasticSearchParamMissingError("_query input missing")
+
+		if '_script' not in item :
+			raise ElasticSearchParamMissingError("_script data to update missing")
+
+
+		item['_op'] = "update_by_query"
+		item['processed'] = False
+		item['_index'] = self._get_index(item)
+		self._check_type(item)
+
+		self._resources.append(item)
+
+	def delete_by_query(self,item):
+		"""
+			Update document already present in the elasticsearch index.
+			Required in the item dictionary
+				_id = ID for the to be saved document
+				_type = Type of the document
+				_index(optional) = If default_index is set, then this is optional
+				_query = Query DSL to delete all the documents matching the query
+			This will be committed during the transaction process. If the document
+			isn't already present in the index, then this will be converted to an add 
+			request.
+		"""
+		log = logging.getLogger(__name__)
+		log.info("Update elasticsearch item")
+		if ( len(self._resources) == 0):
+			log.info("Joining transaction")
+			self.transaction_manager.get().join(self)
+
+		if '_query' not in item :
+			raise ElasticSearchParamMissingError("_query input missing")
+
+		item['_op'] = "delete_by_query"
+		item['processed'] = False
+		item['_index'] = self._get_index(item)
+		self._check_type(item)
+
+		self._resources.append(item)
+
 
 	def _get_index(self,item):
 
@@ -160,13 +236,27 @@ class ElasticDataManager(object):
 	def _check_type(self,item):
 
 		if '_type' not in item:
-			raise ElastiSearchParamMissingError("_type input missing")
+			raise ElasticSearchParamMissingError("_type input missing")
 
 
 	def _check_id(self,item):
 
 		if '_id' not in item:
-			raise ElastiSearchParamMissingError("_id input missing")			
+			raise ElasticSearchParamMissingError("_id input missing")			
+
+
+	def _refresh_if_needed(self,last_operation,currentoperation,unique_indices):
+		"""
+			This function updates the in-memory buffer to a segment so that
+			we can search and update the records immediately after creation
+			https://www.elastic.co/guide/en/elasticsearch/guide/current/near-real-time.html
+		"""
+		if last_operation == currentoperation:
+			return last_operation,unique_indices
+		else:
+			self._connection.indices.refresh(list(unique_indices))
+			unique_indices.clear()
+			return currentoperation,unique_indices
 
 	@property
 	def savepoint(self):
@@ -213,18 +303,33 @@ class ElasticDataManager(object):
 
 		log = logging.getLogger(__name__)
 		log.info("commit")
+		unique_indices = set()
+		last_operation = ""
 		# Lets commnit and keep track of the items that are commited. In case we get 
 		# an abort request then remove those items.
 		for item in self._resources:
+
+			last_operation,unique_indices = self._refresh_if_needed(last_operation,
+																	item['_op'],
+																	unique_indices)
+
+			unique_indices.add(item['_index'])
+
 			if item['_op'] == 'add':
+
+				
 				self._connection.create(index=item['_index'],
 										doc_type=item['_type'],
 										id=item['_id'],
 										body=item['_source'])
 			elif item['_op'] == 'remove':
+
+
 				if(self._connection.exists(index=item['_index'],
 										doc_type=item['_type'],
 										id=item['_id'])):
+
+
 					item['_backup'] = self._connection.get_source(index=item['_index'],
 																doc_type=item['_type'],
 																id=item['_id'])
@@ -234,10 +339,13 @@ class ElasticDataManager(object):
 				else:
 					raise ElasticSearchException("Unable to find " + item['_id'] +" in type " +
 												   item['_type']+" and in index " + item['_index'])
-			else: # Update
+			elif item['_op'] == "update": # Update
+
+
 				if(self._connection.exists(index=item['_index'],
 										doc_type=item['_type'],
 										id=item['_id'])):
+
 					item['_backup'] = self._connection.get_source(index=item['_index'],
 																doc_type=item['_type'],
 																id=item['_id'])
@@ -245,7 +353,7 @@ class ElasticDataManager(object):
 					self._connection.update(index=item['_index'],
 											doc_type=item['_type'],
 											id=item['_id'],
-											body=item['_source'],
+											body={ 'doc':item['_source']},
 											_source=False)
 				else:
 					# The item was not present in the first place
@@ -258,7 +366,57 @@ class ElasticDataManager(object):
 					# abort we will only remove the newly created
 					# document
 					item['_op'] = 'add'
+			elif item['_op'] == "update_by_query":
 
+				# get all the fields provided by the user to update
+				#keys = list(item['_source'].keys())
+
+				item['_backup'] = self._connection.search(index=item['_index'],
+														doc_type=item['_type'],
+														body={ "query":item['_query']},
+														_source=True)
+
+				# print(json.dumps(item['_backup'],sort_keys=True,indent=4))
+
+
+				# example script
+				#	"script":{
+				# 			"inline":"ctx._source.description = params.description;ctx._source.grp_hash = grp_hash",
+				# 			"params" : {
+				#					 "description" : "Srikanth group",
+				#					 "grp_hash" : "3433"
+				#						}
+				# 			}
+
+				toupdate = {
+						"script":item['_script'],
+						"query":item['_query'],
+				}
+				#print(json.dumps(toupdate,sort_keys=True,indent=4))
+
+
+
+				output = self._connection.update_by_query(index=item['_index'],
+														doc_type=item['_type'],
+														body=toupdate,
+														_source=True)
+
+			elif item['_op'] == "delete_by_query":
+
+				# get all the fields provided by the user to update
+				keys = item['_source'].keys()
+
+				item['_backup'] = self._connection.search(index=item['_index'],
+														doc_type=item['_type'],
+														body={"query":item['_query']},
+														_source=True)
+
+				output = self._connection.delete_by_query(index=item['_index'],
+														doc_type=item['_type'],
+														body={"query":item['_query']})
+
+
+				
 			item['processed'] = True
 
 
@@ -279,6 +437,8 @@ class ElasticDataManager(object):
 			a serious error in your hands.
 		"""
 		#Do the operation to add it to elastic search
+		# We are done lets cleanup
+		self._resources = []
 		log = logging.getLogger(__name__)
 		log.info("tcp_finish")
 
@@ -289,26 +449,59 @@ class ElasticDataManager(object):
 		"""
 		log = logging.getLogger(__name__)
 		log.info("tpc_abort")
+		unique_indices = set()
+		last_operation = ""
 		for item in self._resources:
+
+			last_operation,unique_indices = self._refresh_if_needed(last_operation,
+																	item['_op'],
+																	unique_indices)
+
+			unique_indices.add(item['_index'])
+
 			if item['processed']:
 				if item['_op'] == 'add':
+
 					self._connection.delete(index=item['_index'],
 											doc_type=item['_type'],
 											id=item['_id'])
-					print("Removing item")
+					
 				elif item['_op'] == 'remove':
+					
 					self._connection.create(index=item['_index'],
 											doc_type=item['_type'],
 											id=item['_id'],
 											body=item['_backup'])
-					print("Adding item back")
-				else: # Update
+					
+				elif item['_op'] == "update": # Update
+
 					self._connection.update(index=item['_index'],
 											doc_type=item['_type'],
 											id=item['_id'],
 											body=item['_backup'],
 											_source=False)
-					print("Updating back to old value")
+					
+
+				elif item['_op'] == "update_by_query":
+
+					for thing in item['_backup']['hits']['hits']:
+						# update back with old value only if the document exists.
+						if self._connection.exists(index=item['_index'],
+												doc_type=item['_type'],
+												id=thing['_id']) :
+							self._connection.update(index=item['_index'],
+													doc_type=item['_type'],
+													id=thing['_id'],
+												    body={ 'doc':thing['_source']},
+													_source=False)
+
+				elif item['_op'] == "delete_by_query":
+
+					for thing in item['backup']['hits']['hits']:
+						self._connection.create(index=item['_index'],
+											doc_type=item['_type'],
+											id=thing['_id'],
+											body=thing['_source'])
 
 
 	def sortKey(self):

@@ -11,7 +11,7 @@ from eldam.elasticdatamanager import ElasticDataManager
 
 if __name__ == "__main__":
 
-	test_name = "Add"
+	test_name = "Update"
 	configpath = os.path.abspath('./edm.yml') if os.path.exists('./edm.yml') else sys.exit(1)
 
 	config=None
@@ -26,24 +26,23 @@ if __name__ == "__main__":
 	try:
 		edm = ElasticDataManager()
 		edm.connect(config,config['default_index'])
-
-
-		edm.add({'_type':'group',
-				'_id':'2',
-				'_source':{ 
+		edm.connection.create(index=config['default_index'],doc_type='group',id='g100',body={ 
 							"gid": 234, 
 							"owner": "bemineni", 
 							"name": "Sammy", 
 							"grp_hash": "456678", 
 							"description": "Sammy group"
-							}
-				})
-		transaction.commit()
+							})
+		edm.update({'_type':"group",'_id':'g100','_source':{'grp_hash':'12345','name':"Srikanth"}})
 
-		#If not found this will raise an exception
-		data = edm.connection.get_source(index=config['default_index'],doc_type="group",id='2')
+		transaction.commit()
 		
-		print(json.dumps(data,indent=4,sort_keys=True))
+		data = edm.connection.get_source(index=config['default_index'],doc_type="group",id='g100')
+		if(data['grp_hash'] != "12345" or 
+			data['name'] != "Srikanth"):
+			raise Exception("Unable to add/update item")
+		else:
+			print(json.dumps(data,indent=4,sort_keys=True))
 		
 	except Exception as e:
 		print("Failed to add item")
@@ -51,9 +50,8 @@ if __name__ == "__main__":
 		traceback.print_exc()
 		ret = 1
 	finally:
-		#cleanup
-		edm.connection.delete(index=config['default_index'],doc_type='group',id='2')
 		print(test_name + " Test complete")
+		edm.connection.delete(index=config['default_index'],doc_type="group",id="g100")
 
 	sys.exit(ret)
 
