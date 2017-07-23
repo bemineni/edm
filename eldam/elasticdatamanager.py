@@ -72,7 +72,9 @@ class ElasticDataManager(object):
 						# refresh nodes after a node fails to respond
 						sniff_on_connection_fail=True,
 						# and also every 60 seconds
-						sniffer_timeout=60)
+						sniffer_timeout=60,
+						# request timeout
+						timeout=30)
 		self.default_index = default_index
 
 	@property
@@ -251,7 +253,7 @@ class ElasticDataManager(object):
 			we can search and update the records immediately after creation
 			https://www.elastic.co/guide/en/elasticsearch/guide/current/near-real-time.html
 		"""
-		if last_operation == currentoperation:
+		if last_operation == currentoperation or last_operation == "":
 			return last_operation,unique_indices
 		else:
 			self._connection.indices.refresh(list(unique_indices))
