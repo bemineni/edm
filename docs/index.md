@@ -98,7 +98,7 @@ edm.add({'_type':'group',
 transaction.commit()
 ```
 
-### `remove(item)`
+### `remove(item, check_existence=False)`
 
 Remove an existing document from Elasticsearch once the transaction is committed. If this instance of data manager was not added to the transaction manager, then this call will automatically add it to the current transaction.
 
@@ -108,6 +108,7 @@ Parameters
   - '_index' - Index to which this document needs to be included. This is optional if default_index is set during connect.
   - '_type' - Type of the document.
   - '_id' - Id of the document.
+- check_existense - checks if the document indicated in the item exists, then adds into the transaction
 
 ```python
 import transaction
@@ -126,7 +127,7 @@ edm.remove({'_type':'group',
 transaction.commit()
 ```
 
-### `update(item)`
+### `update(item, check_existence=False)`
 
 Update an existing document from Elasticsearch once the transaction is committed. If the document doesn't exist in the index, then this call will automatically convert to an add call, and a new document will be included into ElasticSearch using the `_source` provided in the `item`. If this instance of data manager was not added to the transaction manager, then this call will automatically add it to the current transaction.
 
@@ -137,6 +138,7 @@ Parameters
   - '_type' - Type of the document.
   - '_id' - Id of the document.
   - '_source' - Source of the document. Can be partial update attributes of the original document.
+- check_existense - checks if the document indicated in the item exists, then adds into the transaction
 
 ```python
 import transaction
