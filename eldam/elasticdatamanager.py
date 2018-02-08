@@ -60,7 +60,7 @@ class ElasticDataManager(object):
         self.current = 0
         self._connection = None
 
-    def connect(self, settings, default_index=""):
+    def connect(self, settings, default_index="", auto_create_index=False):
         """
             Establish a elastic search connection
         """
@@ -75,6 +75,10 @@ class ElasticDataManager(object):
                                          # request timeout
                                          timeout=30)
         self.default_index = default_index
+        # applicable for 6.0
+        self.auto_create_index = auto_create_index
+        self.versions = self._getVersion()
+        self.isVersion6 = self._isVersion6_in_cluster()
 
     @property
     def connection(self):
@@ -105,6 +109,7 @@ class ElasticDataManager(object):
         item['_op'] = "add"
         item['processed'] = False
         item['_index'] = self._get_index(item)
+        item['index_created'] = False
         self._check_type(item)
         self._check_id(item)
 
@@ -125,6 +130,7 @@ class ElasticDataManager(object):
         item['_op'] = "remove"
         item['processed'] = False
         item['_index'] = self._get_index(item)
+        item['index_created'] = False
         self._check_type(item)
         self._check_id(item)
 
@@ -155,6 +161,7 @@ class ElasticDataManager(object):
         item['_op'] = "update"
         item['processed'] = False
         item['_index'] = self._get_index(item)
+        item['index_created'] = False
         self._check_type(item)
         self._check_id(item)
 
@@ -198,6 +205,7 @@ class ElasticDataManager(object):
         item['_op'] = "update_by_query"
         item['processed'] = False
         item['_index'] = self._get_index(item)
+        item['index_created'] = False
         self._check_type(item)
 
         self._resources.append(item)
@@ -226,9 +234,23 @@ class ElasticDataManager(object):
         item['_op'] = "delete_by_query"
         item['processed'] = False
         item['_index'] = self._get_index(item)
+        item['index_created'] = False
         self._check_type(item)
 
         self._resources.append(item)
+
+    def _getVersion(self):
+        data = self._connection.cluster.stats()
+        if 'nodes' in data and 'versions' in data['nodes']:
+            return data['nodes']['versions']
+        return []
+
+    def _isVersion6_in_cluster(self):
+        for version in self.versions:
+            split_version = version.split('.')
+            if len(split_version) > 0 and split_version[0] == '6':
+                return True
+        return False
 
     def _check_if_exists(self, request):
         try:
@@ -253,6 +275,9 @@ class ElasticDataManager(object):
         if '_type' not in item:
             raise ElasticSearchParamMissingError("_type input missing")
 
+        if self.isVersion6 and item['_type'] != 'doc':
+            raise ElasticSearchException("custom _type not supported in 6.x. _type should by default be 'doc'")
+
     def _check_id(self, item):
 
         if '_id' not in item:
@@ -270,6 +295,14 @@ class ElasticDataManager(object):
             self._connection.indices.refresh(list(unique_indices))
             unique_indices.clear()
             return currentoperation, unique_indices
+
+    def _checkAndCreateIndex(self, item):
+        if not self._connection.indices.exists(item['_index'], ignore=[400, 404]):
+            # index doesn't exist
+            self._connection.indices.create(index=item['_index'], ignore=[400])
+            return True
+
+        return False
 
     @property
     def savepoint(self):
@@ -327,10 +360,16 @@ class ElasticDataManager(object):
             unique_indices.add(item['_index'])
 
             if item['_op'] == 'add':
+                # if version 6, there is no support for types
+                # All documents get into their own index
+                if self.isVersion6:
+                    item['index_created'] = self._checkAndCreateIndex(item)
+
                 self._connection.create(index=item['_index'],
                                         doc_type=item['_type'],
                                         id=item['_id'],
                                         body=item['_source'])
+
             elif item['_op'] == 'remove':
                 if(self._connection.exists(index=item['_index'],
                                            doc_type=item['_type'],
@@ -459,6 +498,11 @@ class ElasticDataManager(object):
                     self._connection.delete(index=item['_index'],
                                             doc_type=item['_type'],
                                             id=item['_id'])
+                    if self.isVersion6 and item['index_created']:
+                        # We created index in the commit phase,
+                        # so we need to delete it if we are aborting
+                        # the transaction.
+                        self._connection.indices.delete(index=item['_index'], ignore=[400, 404])
 
                 elif item['_op'] == 'remove':
 

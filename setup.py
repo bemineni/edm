@@ -13,7 +13,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='eldam',
-    version='1.2.0',
+    version='1.3.0',
     description="Elastic Search transaction based data manager.",
     long_description="Elastic Search data manger with zope transaction support. *****SAMMY***** 133740 wants to put his name",
     url="https://github.com/bemineni/edm",
@@ -40,7 +40,7 @@ setup(
           ],
     keywords='ElasticSearch Data manager Development',
     packages=find_packages(exclude=['test']),
-    install_requires=['elasticsearch>=5.0.0,<6.0.0',
+    install_requires=['elasticsearch>=5.0.0,<7.0.0',
                       'transaction',
                       'zope.interface',
                       'pyyaml']

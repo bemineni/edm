@@ -1,0 +1,18 @@
+# ------------------------------------------------------------------
+# EDM Configuration file
+# ------------------------------------------------------------------
+
+#Elastic search configuration
+# hosts to connect
+elasticsearch_hosts:
+  - "127.0.0.1"
+
+# port to use
+port: 9200
+default_index: "eldam"
+
+
+
+
+
+

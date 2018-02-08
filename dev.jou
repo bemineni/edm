@@ -2,11 +2,21 @@ Build project
 -------------
 python setup.py sdist
 
+twine upload dist\<newly built tar.gz file>
+
 
 Building documentation
 ----------------------
 
 cd /docs
 make -f Makefile html
+
+Release
+--------
+
+Create a release on github
+
+
+
 
 
