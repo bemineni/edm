@@ -11,6 +11,7 @@
 
 import transaction
 import logging
+import json
 from transaction.interfaces import ISavepointDataManager, IDataManagerSavepoint
 from zope.interface import implementer
 from elasticsearch import Elasticsearch, NotFoundError
@@ -89,6 +90,9 @@ class ElasticDataManager(object):
 
     def get_connection(self):
         return self._connection
+
+    def refresh(self, index="_all"):
+        self._connection.indices.refresh(index)
 
     def add(self, item):
         """
@@ -349,7 +353,7 @@ class ElasticDataManager(object):
         log.info("commit")
         unique_indices = set()
         last_operation = ""
-        # Lets commnit and keep track of the items that are commited. In case we get
+        # Lets commit and keep track of the items that are commited. In case we get
         # an abort request then remove those items.
         for item in self._resources:
 
@@ -440,6 +444,8 @@ class ElasticDataManager(object):
                                                  body=toupdate,
                                                  _source=True)
 
+                # print(json.dumps(t, sort_keys=True, indent=4))
+
             elif item['_op'] == "delete_by_query":
 
                 # get all the fields provided by the user to update
@@ -473,6 +479,8 @@ class ElasticDataManager(object):
         # Do the operation to add it to elastic search
         # We are done lets cleanup
         self._resources = []
+        # Lets refresh all indices once
+        self.refresh()
         log = logging.getLogger(__name__)
         log.info("tcp_finish")
 
