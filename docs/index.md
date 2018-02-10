@@ -1,22 +1,26 @@
 Elasticsearch Data manager
 ==========================
 
-Elasticsearch data manager (ELDAM) with zope transaction support. Other transaction data manager like sqlalchemy
+Elasticsearch data manager (ELDAM) with zope transaction support. Other transaction data manager like SQLAlchemy
 use the database atomic operation feature to rollback if an error occurs during the commit process. This is not
-achievable in elastic search. To overcome this eldam finalizes the records in the commit call of the two-phase transaction process. At the same time takes backup of the existing data in the index, if it involves removing or updating a record.
+achievable in elastic search. To overcome this ELDAM finalizes the records in the commit call of the two-phase transaction process. At the same time takes backup of existing data in the index, if it involves removing or updating a record.
+
+ELDAM now supports Elastic Search 6.0. One significant change in 6.0 is the lack for doc types in a single index. You can read about this here [Removal of mapping types](https://www.elastic.co/guide/en/elasticsearch/reference/current/removal-of-types.html). 
+
+ELDAM will automatically detect this, if any of the nodes in the elastic search cluster is version 6.x and above.
 
 **Some requirements kept in mind while designing this library**
 ---------------------------------------------------------------
 
 * This module is not atomic. If any of the other transactions fail, then there is a brief period where the data still resides in Elasticsearch and will be removed during the `tcp_abort` call.
-* **Please use it with your discretion if Elasticsearch is your primary data store**. This library is perfect if Elasticsearch is used only for searching in your application.
+* **Please use it at your own discretion if Elasticsearch is your primary data store**. This library is perfect if Elasticsearch is used only for searching in your application.
 
 **Transaction process**
 ------------------------
 
-`abort` - If needed, If any of the previous data managers aborted. This is before even beginning this data manager process. Elasticsearch data manager doesn't do anything in this call. Since we haven't committed anything to ElasticSearch
+`abort` - If needed, If any of the previous data managers aborted. This is before even beginning ELDAM data manager transaction process. Elasticsearch data manager doesn't do anything on this call. Since we haven't committed anything into ElasticSearch
 
-`tpc_abort` - If any of the other managers voted no after Elasticsearch data manager has committed, then this function will be called for cleanup
+`tpc_abort` - If any of the other managers voted no after Elasticsearch data manager has committed, then this function will be called for cleanup. We just revert all the data.
 
 ### Two step commit 
 
@@ -35,7 +39,7 @@ Connect to ElasticSearch database
 Parameter 
 - settings - Dictionary with elasticsearch connections details
   * 'elasticsearch_hosts' : array of Elasticsearch hosts [localhost, localhost:443, 16.74.45.322]
-- defualt_index - Default index to store documents. If not specified, then add, remove and update input need to mention the index details.
+- default_index - Default index to store documents. If not specified, then add, remove and update input need to mention the index details. **In 6.x there should always be one mapping type in a single index**. 
 
 ```python 
 from eldam.elasticdatamanger import ElasticDataManager
@@ -49,7 +53,7 @@ edm.connect({
 
 ### `connection()`
 
-Is class property to get the established connection.
+Get the stable connection to Elastic search.
 
 ``` python
 from eldam.elasticdatamanger import ElasticDataManager
@@ -62,10 +66,17 @@ edm.connect({
 # you can directly run api's defined from python ElasticSearch 5.0.0 and above
 print(edm.connection.cluster.health())
 ```
+### `refresh(index="_all")`
+
+Refreshes the indices. If we include a document, and immediately update or delete the document before the internal indexes are refreshed, then the operation can fail. refreshing the indexes will make sure that newly included records are available for modifying or deleting them.
+
+Parameters
+- index- Index to refresh, by default refreshes all indices.
 
 ### `add(item)`
 
-Add a document to be included into Elasticsearch once the transaction is committed. If this instance of data manager was not added to the transaction manager, then this call will automatically add it to the current transaction.
+Add a document to be included into Elasticsearch once the transaction is committed. If this instance of data manager was not included into the transaction manager, then this call will automatically add it to the current transaction.
+**In 6.x ELDAM will automatically create the indexes, if it doesn't exist.** If the transaction fails, the index will be deleted, only if the index was established in the current transaction.
 
 Parameters
 
@@ -100,7 +111,7 @@ transaction.commit()
 
 ### `remove(item, check_existence=False)`
 
-Remove an existing document from Elasticsearch once the transaction is committed. If this instance of data manager was not added to the transaction manager, then this call will automatically add it to the current transaction.
+Remove an existing document from Elasticsearch, once the transaction is committed. If this instance of data manager was not added to the transaction manager, then this call will automatically add it to the current transaction.
 
 Parameters
 
